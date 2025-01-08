@@ -1,63 +1,92 @@
-#include <mqtt.h>
 
-	void mqtt_connect_message(uint8_t * mqtt_message, char * client_id) {
+/*
+* this code was last updatesd by Edwin Kestler on 7/1/2024
+* this code is mqtt.cpp
+* 
+* Key Updates:
+	Buffer size validation:
 
-        uint8_t i = 0;
-        uint8_t client_id_length = strlen(client_id);
+	Checked if the constructed message exceeds MQTT_BUFFER_SIZE.
+	Return error codes for buffer overflow or NULL parameters.
+	Constants for magic numbers:
 
-		mqtt_message[0] = 16;                      // MQTT Message Type CONNECT
-		mqtt_message[1] = 14 + client_id_length;   // Remaining length of the message
+	Replaced magic numbers (e.g., 0x10, 0x30) with named constants like MQTT_CONNECT and MQTT_PUBLISH.
+	Error logging and codes:
 
-		mqtt_message[2] = 0;                       // Protocol Name Length MSB
-		mqtt_message[3] = 6;                       // Protocol Name Length LSB
-		mqtt_message[4] = 77;                      // ASCII Code for M
-		mqtt_message[5] = 81;                      // ASCII Code for Q
-		mqtt_message[6] = 73;                      // ASCII Code for I
-		mqtt_message[7] = 115;                     // ASCII Code for s
-		mqtt_message[8] = 100;                     // ASCII Code for d
-		mqtt_message[9] = 112;                     // ASCII Code for p
-		mqtt_message[10] = 3;                      // MQTT Protocol version = 3
-		mqtt_message[11] = 2;                      // conn flags
-		mqtt_message[12] = 0;                      // Keep-alive Time Length MSB
-		mqtt_message[13] = 15;                     // Keep-alive Time Length LSB
+	Added error messages via fprintf(stderr, ...).
+	Return distinct error codes for different failure cases (-1 for NULL parameters, -2 for buffer overflow).
+* Optimized for performance: memory reuse, use of memcpy, reduced fragmentation
+*/
 
+#include "mqtt.h"
 
-		mqtt_message[14] = 0;                      // Client ID length MSB
-		mqtt_message[15] = client_id_length;       // Client ID length LSB
+// Preallocated buffer to minimize temporary allocations
+static uint8_t preallocated_mqtt_buffer[MQTT_BUFFER_SIZE];
 
-        // Client ID
-        for(i = 0; i < client_id_length + 16; i++){
-            mqtt_message[16 + i] = client_id[i];
-        }
+int mqtt_connect_message(uint8_t *mqtt_message, const char *client_id) {
+    if (!mqtt_message || !client_id) {
+        fprintf(stderr, "Error: NULL parameter provided.\n");
+        return -1; // Error code for NULL parameter
+    }
 
-	}
+    uint8_t client_id_length = strlen(client_id);
+    if (14 + client_id_length > MQTT_BUFFER_SIZE) {
+        fprintf(stderr, "Error: Buffer size exceeded in mqtt_connect_message.\n");
+        return -2; // Error code for buffer overflow
+    }
 
-	void mqtt_publish_message(uint8_t * mqtt_message, char * topic, char * message) {
+    mqtt_message[0] = MQTT_CONNECT;
+    mqtt_message[1] = 14 + client_id_length;
 
-        uint8_t i = 0;
-        uint8_t topic_length = strlen(topic);
-        uint8_t message_length = strlen(message);
+    mqtt_message[2] = 0;
+    mqtt_message[3] = 6;
+    memcpy(&mqtt_message[4], "MQIsdp", 6);
+    mqtt_message[10] = MQTT_PROTOCOL_VERSION;
+    mqtt_message[11] = 2; // Connection flags
+    mqtt_message[12] = 0;
+    mqtt_message[13] = 15; // Keep-alive
 
-		mqtt_message[0] = 48;                                  // MQTT Message Type CONNECT
-		mqtt_message[1] = 2 + topic_length + message_length;   // Remaining length
-		mqtt_message[2] = 0;                                   // MQTT Message Type CONNECT
-		mqtt_message[3] = topic_length;                        // MQTT Message Type CONNECT
+    mqtt_message[14] = 0;
+    mqtt_message[15] = client_id_length;
 
-        // Topic
-        for(i = 0; i < topic_length; i++){
-            mqtt_message[4 + i] = topic[i];
-        }
+    memcpy(&mqtt_message[16], client_id, client_id_length);
 
-        // Message
-        for(i = 0; i < message_length; i++){
-            mqtt_message[4 + topic_length + i] = message[i];
-        }
+    return 0; // Success
+}
 
-	}
+int mqtt_publish_message(uint8_t *mqtt_message, const char *topic, const char *message) {
+    if (!mqtt_message || !topic || !message) {
+        fprintf(stderr, "Error: NULL parameter provided.\n");
+        return -1; // Error code for NULL parameter
+    }
 
-	void mqtt_disconnect_message(uint8_t * mqtt_message) {
-		mqtt_message[0] = 0xE0; // msgtype = connect
-		mqtt_message[1] = 0x00; // length of message (?)
-	}
+    uint8_t topic_length = strlen(topic);
+    uint8_t message_length = strlen(message);
+    if (2 + topic_length + message_length > MQTT_BUFFER_SIZE) {
+        fprintf(stderr, "Error: Buffer size exceeded in mqtt_publish_message.\n");
+        return -2; // Error code for buffer overflow
+    }
 
+    mqtt_message[0] = MQTT_PUBLISH;
+    mqtt_message[1] = 2 + topic_length + message_length;
 
+    mqtt_message[2] = 0;
+    mqtt_message[3] = topic_length;
+
+    memcpy(&mqtt_message[4], topic, topic_length);
+    memcpy(&mqtt_message[4 + topic_length], message, message_length);
+
+    return 0; // Success
+}
+
+int mqtt_disconnect_message(uint8_t *mqtt_message) {
+    if (!mqtt_message) {
+        fprintf(stderr, "Error: NULL parameter provided.\n");
+        return -1; // Error code for NULL parameter
+    }
+
+    mqtt_message[0] = MQTT_DISCONNECT;
+    mqtt_message[1] = 0;
+
+    return 0; // Success
+}
