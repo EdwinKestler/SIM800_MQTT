@@ -1,0 +1,21 @@
+# Syntax Coloring Map
+# KEYWORD1 (functions and methods)
+# KEYWORD2 (user-defined types)
+# KEYWORD3 (constants and macros)
+# LITERAL1 (keywords or predefined variables)
+
+mqtt_v5_connect_message    KEYWORD1
+mqtt_v5_publish_message    KEYWORD1
+mqtt_v5_subscribe_message  KEYWORD1
+mqtt_v5_parse_suback_message  KEYWORD1
+mqtt_v5_disconnect_message KEYWORD1
+
+mqtt_property              KEYWORD2
+
+MQTT_CONNECT               KEYWORD3
+MQTT_PUBLISH               KEYWORD3
+MQTT_SUBSCRIBE             KEYWORD3
+MQTT_SUBACK                KEYWORD3
+MQTT_DISCONNECT            KEYWORD3
+MQTT_PROTOCOL_VERSION_5    KEYWORD3
+MQTT_BUFFER_SIZE           KEYWORD3

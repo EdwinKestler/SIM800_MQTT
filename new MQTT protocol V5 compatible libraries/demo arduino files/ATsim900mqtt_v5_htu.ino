@@ -1,3 +1,8 @@
+
+// ATSIM900MQTT_HTU.ino
+// description: This example demonstrates how to use the MQTT library with the SIM900 module to publish sensor data to an MQTT broker.
+
+
 #include <mqtt_v5.h> // Include the updated MQTT 5.0 library
 #include <SoftwareSerial.h> // For communication with SIM900
 
