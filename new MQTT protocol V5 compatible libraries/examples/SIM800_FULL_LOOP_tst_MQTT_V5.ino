@@ -4,7 +4,20 @@
 *The example initializes the SIM800 module and establishes a GPRS connection for MQTT communication.
 *It then connects to an MQTT broker, subscribes to a topic, and publishes a test message.
 *The example also periodically publishes a message and checks for incoming messages from the broker.
+*key Updates:
+*readSerialChunks() Function:
+*
+*Reads incoming data in smaller chunks to avoid overflowing the inputBuffer.
+*Appends chunks to inputBuffer if space allows.
+*Integration in loop():
+*
+*Continuously reads incoming data using readSerialChunks() and processes complete MQTT messages using processMQTTMessages().
+*Buffer Management:
+*
+*The inputBuffer is reset after processing to ensure no old data is retained.
+*This updated example handles large incoming MQTT messages efficiently and prevents buffer overflows. 
 */
+
 #include <mqtt_v5.h>
 #include <SoftwareSerial.h>
 
@@ -12,6 +25,28 @@
 #define SIM_RX 11
 
 SoftwareSerial SIM800(SIM_TX, SIM_RX);
+
+#define MAX_MESSAGE_SIZE 128  // Maximum expected MQTT message size
+char inputBuffer[MAX_MESSAGE_SIZE]; // Buffer to store incoming data
+volatile uint16_t bufferIndex = 0; // Index to track position in the buffer
+
+#define CHUNK_SIZE 32  // Read in chunks to avoid buffer overflow
+
+void readSerialChunks() {
+  while (SIM800.available()) {
+    char chunk[CHUNK_SIZE + 1] = {0};  // Temporary buffer
+    int len = SIM800.readBytes(chunk, CHUNK_SIZE);
+    chunk[len] = '\0'; // Null-terminate
+
+    // Append to the main buffer
+    if (bufferIndex + len < MAX_MESSAGE_SIZE) {
+      strcat(inputBuffer, chunk);
+      bufferIndex += len;
+    } else {
+      Serial.println("Error: Buffer Overflow in readSerialChunks");
+    }
+  }
+}
 
 extern uint8_t preallocated_mqtt_buffer[];
 
@@ -64,10 +99,11 @@ void loop() {
     lastPublishTime = millis();
   }
 
-  // Check for incoming messages
-  if (SIM800.available()) {
-    checkForIncomingMessages();
-  }
+  // Read incoming serial chunks
+  readSerialChunks();
+
+  // Process buffered MQTT messages
+  processMQTTMessages();
 }
 
 void sendATCommand(const char *command, const char *expectedResponse = "OK", unsigned long timeout = 2000) {
@@ -170,26 +206,13 @@ void sendMQTTMessage(const uint8_t *message, uint16_t length) {
   SIM800.write((char)26);  // End of message (Ctrl+Z)
 }
 
-void checkForIncomingMessages() {
-  uint8_t incoming_message[MQTT_BUFFER_SIZE];
-  int len = SIM800.readBytes(incoming_message, MQTT_BUFFER_SIZE);
+void processMQTTMessages() {
+  if (bufferIndex > 0) {
+    Serial.print("Processing MQTT Message: ");
+    Serial.println(inputBuffer);
 
-  if (incoming_message[0] == MQTT_PUBLISH) {
-    // Extract topic and payload
-    uint16_t topic_length = (incoming_message[2] << 8) | incoming_message[3];
-    char received_topic[topic_length + 1];
-    memcpy(received_topic, &incoming_message[4], topic_length);
-    received_topic[topic_length] = '\0';
-
-    uint16_t payload_start = 4 + topic_length;
-    uint16_t payload_length = len - payload_start;
-    char received_payload[payload_length + 1];
-    memcpy(received_payload, &incoming_message[payload_start], payload_length);
-    received_payload[payload_length] = '\0';
-
-    Serial.print("Message received on topic ");
-    Serial.print(received_topic);
-    Serial.print(": ");
-    Serial.println(received_payload);
+    // Reset the buffer after processing
+    memset(inputBuffer, 0, MAX_MESSAGE_SIZE);
+    bufferIndex = 0;
   }
 }

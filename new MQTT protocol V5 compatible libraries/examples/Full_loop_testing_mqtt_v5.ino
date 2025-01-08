@@ -8,42 +8,58 @@
 #define SIM_TX 10
 #define SIM_RX 11
 
-SoftwareSerial SIM900(SIM_TX, SIM_RX);
+SoftwareSerial SIM800(SIM_TX, SIM_RX);
+
+#define MAX_MESSAGE_SIZE 128  // Maximum expected MQTT message size
+char inputBuffer[MAX_MESSAGE_SIZE]; // Buffer to store incoming data
+volatile uint16_t bufferIndex = 0; // Index to track position in the buffer
+
+#define CHUNK_SIZE 32  // Read in chunks to avoid buffer overflow
+
+void readSerialChunks() {
+  while (SIM800.available()) {
+    char chunk[CHUNK_SIZE + 1] = {0};  // Temporary buffer
+    int len = SIM800.readBytes(chunk, CHUNK_SIZE);
+    chunk[len] = '\0'; // Null-terminate
+
+    // Append to the main buffer
+    if (bufferIndex + len < MAX_MESSAGE_SIZE) {
+      strcat(inputBuffer, chunk);
+      bufferIndex += len;
+    } else {
+      Serial.println("Error: Buffer Overflow in readSerialChunks");
+    }
+  }
+}
 
 extern uint8_t preallocated_mqtt_buffer[];
 
-// Define MQTT topic and payload
+// MQTT broker details
 const char *topic = "test/topic";
-const char *payload = "{\"message\": \"Hello, MQTT!\"}";
+const char *payload = "{\"message\": \"Hello, MQTT V5!\"}";
 
 void setup() {
   Serial.begin(9600);
-  SIM900.begin(9600);
+  SIM800.begin(9600);
 
-  // Allow time for SIM900 initialization
+  Serial.println("Initializing SIM800...");
   delay(3000);
 
-  // Connect to the MQTT broker
-  connect_to_broker();
-
-  // Subscribe to the topic
-  subscribe_to_topic();
+  connectToMQTTBroker();
+  subscribeToTopic();
 }
 
 void loop() {
-  // Publish a message
-  publish_message();
-
-  // Check for incoming messages
-  check_for_incoming_messages();
-
-  delay(5000); // Wait 5 seconds before next loop iteration
+  publishMessage();
+  readSerialChunks(); // Check and read serial chunks
+  processMQTTMessages(); // Process buffered messages
+  delay(5000);
 }
 
-void connect_to_broker() {
+void connectToMQTTBroker() {
   Serial.println("Connecting to MQTT broker...");
   mqtt_property connect_properties[1];
-  uint8_t session_expiry[4] = {0, 0, 0, 60}; // Session Expiry Interval: 60 seconds
+  uint8_t session_expiry[4] = {0, 0, 0, 60};  // Session Expiry Interval: 60 seconds
   connect_properties[0].property_id = 0x11;
   connect_properties[0].length = 4;
   connect_properties[0].value = session_expiry;
@@ -54,16 +70,16 @@ void connect_to_broker() {
     return;
   }
 
-  send_message(preallocated_mqtt_buffer, strlen((char *)preallocated_mqtt_buffer));
+  sendMQTTMessage(preallocated_mqtt_buffer, strlen((char *)preallocated_mqtt_buffer));
   Serial.println("CONNECT message sent.");
 }
 
-void subscribe_to_topic() {
+void subscribeToTopic() {
   Serial.print("Subscribing to topic: ");
   Serial.println(topic);
 
   mqtt_property subscribe_properties[1];
-  uint8_t subscription_identifier[2] = {0x00, 0x01}; // Subscription Identifier
+  uint8_t subscription_identifier[2] = {0x00, 0x01};  // Subscription Identifier
   subscribe_properties[0].property_id = 0x0B;
   subscribe_properties[0].length = 2;
   subscribe_properties[0].value = subscription_identifier;
@@ -74,16 +90,16 @@ void subscribe_to_topic() {
     return;
   }
 
-  send_message(preallocated_mqtt_buffer, strlen((char *)preallocated_mqtt_buffer));
+  sendMQTTMessage(preallocated_mqtt_buffer, strlen((char *)preallocated_mqtt_buffer));
   Serial.println("SUBSCRIBE message sent.");
 }
 
-void publish_message() {
+void publishMessage() {
   Serial.print("Publishing message to topic: ");
   Serial.println(topic);
 
   mqtt_property publish_properties[1];
-  uint8_t content_type[] = "application/json"; // Content type property
+  uint8_t content_type[] = "application/json";  // Content type property
   publish_properties[0].property_id = 0x03;
   publish_properties[0].length = strlen((char *)content_type);
   publish_properties[0].value = content_type;
@@ -94,45 +110,24 @@ void publish_message() {
     return;
   }
 
-  send_message(preallocated_mqtt_buffer, strlen((char *)preallocated_mqtt_buffer));
+  sendMQTTMessage(preallocated_mqtt_buffer, strlen((char *)preallocated_mqtt_buffer));
   Serial.println("PUBLISH message sent.");
 }
 
-void check_for_incoming_messages() {
-  if (SIM900.available()) {
-    uint8_t incoming_message[MQTT_BUFFER_SIZE];
-    int len = SIM900.readBytes(incoming_message, MQTT_BUFFER_SIZE);
-
-    if (incoming_message[0] == MQTT_SUBACK) {
-      uint8_t packet_id;
-      uint8_t return_code;
-      if (mqtt_v5_parse_suback_message(incoming_message, &packet_id, &return_code) == 0) {
-        Serial.print("SUBACK received. Packet ID: ");
-        Serial.print(packet_id);
-        Serial.print(", Return Code: ");
-        Serial.println(return_code);
-      }
-    } else if (incoming_message[0] == MQTT_PUBLISH) {
-      // Handle incoming PUBLISH messages
-      uint16_t topic_length = (incoming_message[2] << 8) | incoming_message[3];
-      char received_topic[topic_length + 1];
-      memcpy(received_topic, &incoming_message[4], topic_length);
-      received_topic[topic_length] = '\0';
-
-      uint16_t payload_start = 4 + topic_length;
-      uint16_t payload_length = len - payload_start;
-      char received_payload[payload_length + 1];
-      memcpy(received_payload, &incoming_message[payload_start], payload_length);
-      received_payload[payload_length] = '\0';
-
-      Serial.print("Message received on topic ");
-      Serial.print(received_topic);
-      Serial.print(": ");
-      Serial.println(received_payload);
-    }
-  }
+void sendMQTTMessage(const uint8_t *message, uint16_t length) {
+  SIM800.println("AT+CIPSEND");
+  delay(500);
+  SIM800.write(message, length);
+  SIM800.write((char)26);  // End of message (Ctrl+Z)
 }
 
-void send_message(const uint8_t *message, uint16_t length) {
-  SIM900.write(message, length);
+void processMQTTMessages() {
+  if (bufferIndex > 0) {
+    Serial.print("Processing MQTT Message: ");
+    Serial.println(inputBuffer);
+
+    // Reset the buffer after processing
+    memset(inputBuffer, 0, MAX_MESSAGE_SIZE);
+    bufferIndex = 0;
+  }
 }
