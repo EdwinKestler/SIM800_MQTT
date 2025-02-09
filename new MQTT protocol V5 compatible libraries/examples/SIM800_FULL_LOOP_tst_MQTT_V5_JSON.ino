@@ -31,17 +31,26 @@ volatile uint16_t bufferIndex = 0; // Index to track position in the buffer
 #define CHUNK_SIZE 32  // Read in chunks to avoid buffer overflow
 
 void readSerialChunks() {
+  // Continuously read incoming data in fixed-size chunks
   while (SIM800.available()) {
-    char chunk[CHUNK_SIZE + 1] = {0};  // Temporary buffer
-    int len = SIM800.readBytes(chunk, CHUNK_SIZE);
-    chunk[len] = '\0'; // Null-terminate
+    // Temporary buffer to hold one chunk of incoming data.
+    char chunk[CHUNK_SIZE + 1] = {0};  
+    int len = simSerial->readBytes(chunk, CHUNK_SIZE);
+    chunk[len] = '\0'; // Ensure the chunk is null-terminated.
 
-    // Append to the main buffer
+    // Check if there is enough space remaining in inputBuffer.
     if (bufferIndex + len < MAX_MESSAGE_SIZE) {
-      strcat(inputBuffer, chunk);
+      // Copy the chunk directly into inputBuffer at the current bufferIndex.
+      memcpy(inputBuffer + bufferIndex, chunk, len);
       bufferIndex += len;
+      // Ensure the overall inputBuffer is null-terminated after appending.
+      inputBuffer[bufferIndex] = '\0';
     } else {
       Serial.println("Error: Buffer Overflow in readSerialChunks");
+      // Optionally, handle overflow here (e.g., discard incoming data or reset the buffer)
+      memset(inputBuffer, 0, MAX_MESSAGE_SIZE);
+      bufferIndex = 0;
+      break;  // Exit the loop, or you might continue depending on your error handling strategy.
     }
   }
 }
