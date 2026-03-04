@@ -1,24 +1,53 @@
 # Build artifacts
 *.o
+*.a
+*.d
 *.elf
 *.hex
 *.bin
 *.map
+*.lst
 
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-Thumbs.db
+# Arduino CLI / IDE build output
+build/
+*.ino.hex
+*.ino.elf
+*.ino.bin
 
-# Test binaries
+# Test binaries and coverage
 test/test_mqtt_v5
 test/test_mqtt_v5.exe
+*.gcno
+*.gcda
+*.gcov
+*.dSYM/
 
 # PlatformIO
 .pio/
 .pioenvs/
 .piolibdeps/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.bak
+*.orig
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+compile_commands.json
+
+# OS files
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+
+# Tool config
+.claude/
+
+# Logs
+*.log
