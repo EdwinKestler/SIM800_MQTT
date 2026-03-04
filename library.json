@@ -1,0 +1,20 @@
+{
+  "name": "UARTMqttV5",
+  "version": "1.1.0",
+  "description": "MQTT 5.0 protocol library for Arduino via UART SIM800/SIM900 GPRS modules",
+  "keywords": ["mqtt", "mqtt5", "sim800", "sim900", "gprs", "iot"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/EdwinKestler/SIM800_MQTT.git"
+  },
+  "authors": [
+    {
+      "name": "Edwin Kestler",
+      "email": "kestler@flatbox.co",
+      "maintainer": true
+    }
+  ],
+  "license": "MIT",
+  "frameworks": "arduino",
+  "platforms": ["atmelavr", "atmelsam"]
+}
