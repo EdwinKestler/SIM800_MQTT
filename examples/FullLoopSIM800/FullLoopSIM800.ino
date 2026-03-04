@@ -34,6 +34,9 @@ void readSerialChunks() {
   }
 }
 
+// Forward declarations
+void sendATCommand(const char *command, const char *expectedResponse = "OK", unsigned long timeout = 2000);
+
 // Configuration for GPRS and MQTT
 const char *apn = "your-apn";  // Replace with your APN
 const char *mqtt_broker = "mqtt.example.com";  // Replace with your MQTT broker

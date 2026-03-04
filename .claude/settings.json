@@ -3,7 +3,21 @@
     "allow": [
       "WebFetch(domain:docs.oasis-open.org)",
       "Bash(gcc -Wall -Wextra -I../src -o test_mqtt_v5 test_mqtt_v5.c ../src/YuaMQTT.cpp -lstdc++)",
-      "Bash(./test_mqtt_v5.exe)"
+      "Bash(./test_mqtt_v5.exe)",
+      "Bash(where arduino-cli)",
+      "Bash(curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh)",
+      "Bash(BINDIR=/usr/local/bin sh)",
+      "Bash(BINDIR=$HOME/bin sh)",
+      "Bash(export PATH=\"$HOME/bin:$PATH\")",
+      "Bash(arduino-cli version)",
+      "Bash(arduino-cli core update-index)",
+      "Bash(arduino-cli core install arduino:avr)",
+      "Bash(arduino-cli compile --fqbn arduino:avr:uno --libraries . examples/FullLoopJSON)",
+      "Bash(arduino-cli compile --fqbn arduino:avr:mega --libraries . examples/HardwareSerialPublish)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\kestl",
+      "\\tmp\\arduino-cli"
     ]
   }
 }

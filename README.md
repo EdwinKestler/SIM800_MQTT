@@ -48,6 +48,195 @@ Add to `platformio.ini`:
 lib_deps = https://github.com/EdwinKestler/SIM800_MQTT.git
 ```
 
+## Getting Started — Arduino Pro Mini + SIM800L
+
+### Hardware
+
+![Arduino Pro Mini + SIM800L wiring](pictures/ArduinoMiniSIM800_Wirering.jpg)
+
+#### Parts needed
+
+| Part | Notes |
+| --- | --- |
+| Arduino Pro Mini 3.3V 8MHz | 3.3V version (not 5V) |
+| SIM800L module | With antenna and SIM card inserted |
+| FTDI USB-to-Serial adapter | 3.3V — for programming and debug serial |
+| Li-ion battery or LDO PSU | **4V / 2A** for SIM800L (not from Arduino VCC!) |
+| R1 = 2.2K, R2 = 10K | Voltage divider for TX level shifting |
+| R3 = 1K | RST pull-up |
+| Breadboard + jumper wires | |
+
+#### Wiring
+
+```text
+FTDI 3.3V          Arduino Pro Mini 3.3V          SIM800L
+─────────           ──────────────────            ────────
+TX  ──────────────► RX
+RX  ◄────────────── TX
+VCC ──────────────► VCC
+GND ──────────────► GND ────────────────────────► GND
+
+                    D10 (SoftwareSerial TX) ─┐
+                                   R1 (2.2K) ├──► SIM800L RXD
+                                   R2 (10K)  ┘─► GND
+                                     (divides 3.3V → 2.7V)
+
+                    D11 (SoftwareSerial RX) ◄──── SIM800L TXD
+
+                                   Battery +4V ──► SIM800L VCC
+                                   Battery GND ──► SIM800L GND
+```
+
+**Important**: The SIM800L needs **4V at up to 2A** peak during transmission. Do NOT power it from the Arduino's 3.3V regulator — it will brown out. Use a dedicated Li-ion cell (3.7-4.2V) or a 4V LDO.
+
+The voltage divider (R1=2.2K, R2=10K) drops the Arduino's 3.3V TX to ~2.7V, which is safe for the SIM800L's 2.8V logic input. The SIM800L's TXD output is already at 2.8V, which the Arduino reads as HIGH at 3.3V — no level shifter needed on that line.
+
+### Step 1: Install the MQTT V5 broker (Mosquitto)
+
+Mosquitto is the simplest MQTT broker with V5 support. Install it on any PC on your network (or a Raspberry Pi).
+
+**Linux (Debian/Ubuntu):**
+
+```bash
+sudo apt install mosquitto mosquitto-clients
+```
+
+**Windows:**
+
+Download from [mosquitto.org/download](https://mosquitto.org/download/) and install.
+
+**macOS:**
+
+```bash
+brew install mosquitto
+```
+
+Create a minimal config that enables MQTT V5 and allows anonymous access for testing:
+
+```bash
+# Create or edit /etc/mosquitto/conf.d/yuamqtt_test.conf
+cat << 'EOF' | sudo tee /etc/mosquitto/conf.d/yuamqtt_test.conf
+listener 1883
+allow_anonymous true
+EOF
+```
+
+Restart Mosquitto:
+
+```bash
+sudo systemctl restart mosquitto
+```
+
+### Step 2: Test the broker from your PC
+
+Open two terminals. In terminal 1, subscribe:
+
+```bash
+mosquitto_sub -V 5 -h localhost -t "test/topic" -v
+```
+
+In terminal 2, publish:
+
+```bash
+mosquitto_pub -V 5 -h localhost -t "test/topic" -m "hello from PC"
+```
+
+You should see `test/topic hello from PC` appear in terminal 1. Your broker is working.
+
+### Step 3: Find your broker's IP address
+
+```bash
+# Linux/macOS
+hostname -I
+
+# Windows
+ipconfig
+```
+
+Note the IP (e.g., `192.168.1.100`). The Arduino will connect to this IP over GPRS.
+
+### Step 4: Upload the sketch
+
+Make sure the SIM card has an active data plan and you know the APN (ask your carrier).
+
+Open `examples/BasicPublish/BasicPublish.ino` in Arduino IDE. Modify the sketch to use the SIM800 helper and your broker IP:
+
+```cpp
+#include <YuaMQTT.h>
+#include <YuaMQTT_SIM800.h>
+#include <SoftwareSerial.h>
+
+SoftwareSerial simSerial(10, 11);  // TX=D10, RX=D11
+YuaSIM800 sim(simSerial, &Serial); // debug on USB serial
+
+void setup() {
+    Serial.begin(9600);
+    simSerial.begin(9600);
+    delay(3000);  // wait for SIM800L to boot
+
+    Serial.println("Starting...");
+
+    if (!sim.begin()) {
+        Serial.println("SIM800 not responding!");
+        while (1);
+    }
+
+    Serial.print("Signal: ");
+    Serial.println(sim.signalQuality());
+
+    // Replace "your-apn" with your carrier's APN
+    if (!sim.gprsConnect("your-apn")) {
+        Serial.println("GPRS failed!");
+        while (1);
+    }
+
+    // Replace with your broker's IP
+    if (!sim.tcpConnect("192.168.1.100", 1883)) {
+        Serial.println("TCP failed!");
+        while (1);
+    }
+
+    // Send MQTT V5 CONNECT
+    int len = mqtt_v5_connect_message(preallocated_mqtt_buffer,
+                "arduino_mini", MQTT_DEFAULT_KEEP_ALIVE, NULL, 0);
+    if (len > 0) sim.tcpSend(preallocated_mqtt_buffer, len);
+}
+
+void loop() {
+    int len = mqtt_v5_publish_message(preallocated_mqtt_buffer,
+                "test/topic", "{\"temp\":25}", NULL, 0);
+    if (len > 0) {
+        sim.tcpSend(preallocated_mqtt_buffer, len);
+        Serial.println("Published!");
+    }
+    delay(5000);
+}
+```
+
+Select **Tools > Board > Arduino Pro or Pro Mini** and **Tools > Processor > ATmega328P (3.3V, 8MHz)**. Upload via the FTDI adapter.
+
+### Step 5: Verify
+
+On your PC terminal running `mosquitto_sub`, you should see:
+
+```text
+test/topic {"temp":25}
+test/topic {"temp":25}
+...
+```
+
+Open **Tools > Serial Monitor** at 9600 baud to see debug output from the SIM800 AT commands.
+
+### Troubleshooting
+
+| Problem | Fix |
+| --- | --- |
+| SIM800 not responding | Check 4V power, wait 3-5s after power-on, verify GND is shared |
+| Signal quality = 99 | Antenna not connected, or no network coverage |
+| GPRS failed | Wrong APN — check with your carrier |
+| TCP failed | Broker not reachable from mobile network (firewall/NAT). Try a public broker like `test.mosquitto.org` |
+| No data in mosquitto_sub | Check broker allows anonymous + MQTT V5 (`-V 5` flag) |
+
 ## Quick Start
 
 ### Using the SIM800 module helper
@@ -210,6 +399,72 @@ Common property IDs:
 - **FullLoopSIM800** - Full loop with GPRS configuration
 - **FullLoopJSON** - Full loop with ArduinoJson parsing (requires ArduinoJson library)
 - **HardwareSerialPublish** - Hardware UART (Serial1) with SIM800 helper, GPRS, and keep-alive (Mega, ESP32, STM32, RP2040)
+
+## Memory Footprint
+
+Compiled with Arduino CLI 1.4.1, AVR core 1.8.7 (avr-gcc 7.3.0).
+
+| Example | Board | Flash | Flash % | RAM | RAM % | Free RAM |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| BasicPublish | Uno | 4,826 B | 14% | 757 B | 36% | 1,291 B |
+| BasicSubscribe | Uno | 5,266 B | 16% | 679 B | 33% | 1,369 B |
+| FullLoopTest | Uno | 6,580 B | 20% | 1,288 B | 62% | 760 B |
+| FullLoopSIM800 | Uno | 8,312 B | 25% | 1,379 B | 67% | 669 B |
+| FullLoopJSON | Uno | 13,564 B | 42% | 1,549 B | 75% | 499 B |
+| HardwareSerialPublish | Mega | 8,786 B | 3% | 984 B | 12% | 7,208 B |
+
+**Arduino Uno limits**: 32,256 bytes flash, 2,048 bytes RAM.
+
+- **BasicPublish / BasicSubscribe** are very comfortable at 14–16% flash and 33–36% RAM — plenty of room for application logic.
+- **FullLoopSIM800** fits well at 25% flash and 67% RAM. The 669 bytes free for stack is tight but workable since the call stacks are shallow.
+- **FullLoopJSON** is the tightest at 75% RAM (499 bytes free). The compiler warns "Low memory available, stability problems may occur." If you need JSON parsing on Uno, reduce `MAX_MESSAGE_SIZE` from 128 to 64 or use a smaller `StaticJsonDocument`.
+- **HardwareSerialPublish** on Mega uses only 3% flash / 12% RAM — multi-UART boards have headroom to spare.
+
+### Reproduce these results with Arduino CLI
+
+Install the Arduino CLI and AVR core:
+
+```bash
+# Install Arduino CLI (Linux/macOS)
+curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
+
+# Windows — download from https://arduino.github.io/arduino-cli/installation/
+
+# Install the AVR core
+arduino-cli core update-index
+arduino-cli core install arduino:avr
+```
+
+Clone the repo and compile any example:
+
+```bash
+git clone https://github.com/EdwinKestler/SIM800_MQTT.git
+cd SIM800_MQTT
+
+# Compile for Arduino Uno
+arduino-cli compile --fqbn arduino:avr:uno --libraries . examples/BasicPublish
+arduino-cli compile --fqbn arduino:avr:uno --libraries . examples/BasicSubscribe
+arduino-cli compile --fqbn arduino:avr:uno --libraries . examples/FullLoopTest
+arduino-cli compile --fqbn arduino:avr:uno --libraries . examples/FullLoopSIM800
+arduino-cli compile --fqbn arduino:avr:uno --libraries . examples/FullLoopJSON  # needs ArduinoJson (see below)
+
+# Compile for Arduino Mega
+arduino-cli compile --fqbn arduino:avr:mega --libraries . examples/HardwareSerialPublish
+```
+
+The FullLoopJSON example requires the ArduinoJson library:
+
+```bash
+arduino-cli lib install ArduinoJson
+arduino-cli compile --fqbn arduino:avr:uno --libraries . examples/FullLoopJSON
+```
+
+Each compile prints flash and RAM usage at the end, e.g.:
+
+```text
+Sketch uses 8312 bytes (25%) of program storage space. Maximum is 32256 bytes.
+Global variables use 1379 bytes (67%) of dynamic memory, leaving 669 bytes for local variables.
+```
 
 ## Supported Boards
 
