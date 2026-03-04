@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  unit-tests:
+    name: Unit Tests (gcc)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run tests
+        run: |
+          cd test
+          make test
+
+  arduino-compile:
+    name: Arduino Compile (${{ matrix.example }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        example:
+          - BasicPublish
+          - BasicSubscribe
+          - FullLoopTest
+          - FullLoopSIM800
+          - HardwareSerialPublish
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Install AVR core
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install arduino:avr
+
+      - name: Compile for Uno
+        run: |
+          arduino-cli compile \
+            --fqbn arduino:avr:uno \
+            --libraries . \
+            examples/${{ matrix.example }}
+
+  arduino-compile-mega:
+    name: Arduino Compile Mega (HardwareSerialPublish)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Install AVR core
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install arduino:avr
+
+      - name: Compile for Mega
+        run: |
+          arduino-cli compile \
+            --fqbn arduino:avr:mega \
+            --libraries . \
+            examples/HardwareSerialPublish
+
+  arduino-compile-json:
+    name: Arduino Compile (FullLoopJSON)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+
+      - name: Install AVR core and ArduinoJson
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install arduino:avr
+          arduino-cli lib install ArduinoJson
+
+      - name: Compile for Uno
+        run: |
+          arduino-cli compile \
+            --fqbn arduino:avr:uno \
+            --libraries . \
+            examples/FullLoopJSON

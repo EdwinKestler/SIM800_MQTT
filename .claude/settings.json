@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:docs.oasis-open.org)"
+      "WebFetch(domain:docs.oasis-open.org)",
+      "Bash(gcc -Wall -Wextra -I../src -o test_mqtt_v5 test_mqtt_v5.c ../src/YuaMQTT.cpp -lstdc++)",
+      "Bash(./test_mqtt_v5.exe)"
     ]
   }
 }

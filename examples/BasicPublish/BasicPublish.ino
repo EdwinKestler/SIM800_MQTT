@@ -1,7 +1,7 @@
 // BasicPublish example
 // Demonstrates publishing sensor data via MQTT V5 using SIM900 module.
 
-#include <mqtt_v5.h>
+#include <YuaMQTT.h>
 #include <SoftwareSerial.h>
 
 #define SIM_TX 10
@@ -25,7 +25,7 @@ void setup() {
   properties[0].length = 4;
   properties[0].value = session_expiry_value;
 
-  int len = mqtt_v5_connect_message(preallocated_mqtt_buffer, client_id, properties, 1);
+  int len = mqtt_v5_connect_message(preallocated_mqtt_buffer, client_id, MQTT_DEFAULT_KEEP_ALIVE, properties, 1);
   if (len > 0) {
     send_message(preallocated_mqtt_buffer, len);
   }

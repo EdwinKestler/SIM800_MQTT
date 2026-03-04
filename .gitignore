@@ -1,0 +1,24 @@
+# Build artifacts
+*.o
+*.elf
+*.hex
+*.bin
+*.map
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Test binaries
+test/test_mqtt_v5
+test/test_mqtt_v5.exe
+
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/

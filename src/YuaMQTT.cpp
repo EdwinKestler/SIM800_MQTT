@@ -1,5 +1,5 @@
 /******************************************
-* mqtt_v5.cpp
+* YuaMQTT.cpp
 * MQTT 5.0 packet construction and parsing.
 *
 * All construction functions return:
@@ -7,7 +7,7 @@
 *   negative int = error code (failure)
 ******************************************/
 
-#include "mqtt_v5.h"
+#include "YuaMQTT.h"
 
 // Preallocated buffer to minimize dynamic allocations
 uint8_t preallocated_mqtt_buffer[MQTT_BUFFER_SIZE];
@@ -168,14 +168,12 @@ static int encode_property(uint8_t *buf, const mqtt_property *prop) {
             break;
 
         case MQTT_PROP_TYPE_VBI: {
-            int vbi_len = mqtt_v5_encode_vbi(&buf[index], 0);
-            // For VBI properties, encode the value bytes directly as a VBI
-            // The caller stores the integer value in the value buffer (up to 4 bytes, big-endian)
+            // Caller stores the integer value in the value buffer (up to 4 bytes, big-endian)
             uint32_t vbi_val = 0;
             for (uint16_t i = 0; i < prop->length && i < 4; i++) {
                 vbi_val = (vbi_val << 8) | prop->value[i];
             }
-            vbi_len = mqtt_v5_encode_vbi(&buf[index], vbi_val);
+            int vbi_len = mqtt_v5_encode_vbi(&buf[index], vbi_val);
             if (vbi_len < 0) return -1;
             index += vbi_len;
             break;
@@ -262,7 +260,7 @@ static int encode_all_properties(uint8_t *buf, const mqtt_property *properties, 
 *     [0x00][0x04]MQTT       - Protocol Name
 *     [0x05]                  - Protocol Version 5
 *     [0x02]                  - Connect Flags (Clean Start)
-*     [0x00][0x0F]            - Keep Alive (15 seconds)
+*     [keep_alive MSB][LSB]   - Keep Alive (seconds)
 *     [Properties Length VBI] - Properties length
 *     [Properties...]         - Property data
 *   Payload:
@@ -271,7 +269,7 @@ static int encode_all_properties(uint8_t *buf, const mqtt_property *properties, 
 *
 * Returns: total packet length on success, negative on error
 ******************************************/
-int mqtt_v5_connect_message(uint8_t *mqtt_message, const char *client_id, mqtt_property *properties, uint8_t property_count) {
+int mqtt_v5_connect_message(uint8_t *mqtt_message, const char *client_id, uint16_t keep_alive, mqtt_property *properties, uint8_t property_count) {
     if (!mqtt_message || !client_id) return -1;
 
     uint16_t client_id_length = strlen(client_id);
@@ -320,9 +318,9 @@ int mqtt_v5_connect_message(uint8_t *mqtt_message, const char *client_id, mqtt_p
     // Connect Flags (Clean Start = 1)
     mqtt_message[index++] = 0x02;
 
-    // Keep Alive (15 seconds)
-    mqtt_message[index++] = 0x00;
-    mqtt_message[index++] = 0x0F;
+    // Keep Alive
+    mqtt_message[index++] = (keep_alive >> 8) & 0xFF;
+    mqtt_message[index++] = keep_alive & 0xFF;
 
     // Properties Length (VBI)
     memcpy(&mqtt_message[index], props_len_vbi, props_len_vbi_size);
@@ -430,7 +428,7 @@ int mqtt_v5_publish_message(uint8_t *mqtt_message, const char *topic, const char
 *
 * Returns: total packet length on success, negative on error
 ******************************************/
-int mqtt_v5_subscribe_message(uint8_t *mqtt_message, const char *topic, uint8_t qos, mqtt_property *properties, uint8_t property_count) {
+int mqtt_v5_subscribe_message(uint8_t *mqtt_message, uint16_t packet_id, const char *topic, uint8_t qos, mqtt_property *properties, uint8_t property_count) {
     if (!mqtt_message || !topic) return -1;
 
     uint16_t topic_length = strlen(topic);
@@ -466,8 +464,8 @@ int mqtt_v5_subscribe_message(uint8_t *mqtt_message, const char *topic, uint8_t 
     index += rem_len_vbi_size;
 
     // Packet Identifier
-    mqtt_message[index++] = 0x00; // MSB
-    mqtt_message[index++] = 0x01; // LSB (static ID 1)
+    mqtt_message[index++] = (packet_id >> 8) & 0xFF;
+    mqtt_message[index++] = packet_id & 0xFF;
 
     // Properties Length (VBI)
     memcpy(&mqtt_message[index], props_len_vbi, props_len_vbi_size);

@@ -1,8 +1,8 @@
 {
-  "name": "UARTMqttV5",
+  "name": "YuaMQTT",
   "version": "1.1.0",
-  "description": "MQTT 5.0 protocol library for Arduino via UART SIM800/SIM900 GPRS modules",
-  "keywords": ["mqtt", "mqtt5", "sim800", "sim900", "gprs", "iot"],
+  "description": "Yet Another UART MQTT Library - MQTT 5.0 for Arduino Uno via SIM800/SIM900 GPRS",
+  "keywords": ["mqtt", "mqtt5", "sim800", "sim900", "gprs", "iot", "yuamqtt"],
   "repository": {
     "type": "git",
     "url": "https://github.com/EdwinKestler/SIM800_MQTT.git"
@@ -16,5 +16,5 @@
   ],
   "license": "MIT",
   "frameworks": "arduino",
-  "platforms": ["atmelavr", "atmelsam"]
+  "platforms": ["atmelavr", "atmelsam", "espressif32", "raspberrypi"]
 }

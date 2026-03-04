@@ -1,7 +1,7 @@
 // FullLoopSIM800 example
 // Full loop with GPRS configuration, connect, subscribe, publish on SIM800.
 
-#include <mqtt_v5.h>
+#include <YuaMQTT.h>
 #include <SoftwareSerial.h>
 
 #define SIM_TX 10
@@ -114,7 +114,7 @@ void connectToMQTTBroker() {
   connect_properties[0].length = 4;
   connect_properties[0].value = session_expiry;
 
-  int len = mqtt_v5_connect_message(preallocated_mqtt_buffer, client_id, connect_properties, 1);
+  int len = mqtt_v5_connect_message(preallocated_mqtt_buffer, client_id, MQTT_DEFAULT_KEEP_ALIVE, connect_properties, 1);
   if (len > 0) {
     sendMQTTMessage(preallocated_mqtt_buffer, len);
     Serial.println("CONNECT message sent.");
@@ -133,7 +133,7 @@ void subscribeToTopic(const char *topic) {
   subscribe_properties[0].length = 2;
   subscribe_properties[0].value = subscription_identifier;
 
-  int len = mqtt_v5_subscribe_message(preallocated_mqtt_buffer, topic, 1, subscribe_properties, 1);
+  int len = mqtt_v5_subscribe_message(preallocated_mqtt_buffer, 1, topic, 1, subscribe_properties, 1);
   if (len > 0) {
     sendMQTTMessage(preallocated_mqtt_buffer, len);
     Serial.println("SUBSCRIBE message sent.");

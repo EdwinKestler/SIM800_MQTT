@@ -1,8 +1,10 @@
-// mqtt_v5.h
+// YuaMQTT.h
 /******************************************
-* MQTT v5.0 Library Header File
-* Implements MQTT 5.0 packet construction and parsing
-* for SIM800/SIM900 GPRS modules on Arduino.
+* YuaMQTT - Yet Another UART MQTT Library
+* MQTT v5.0 packet construction and parsing
+*
+* Transport-agnostic: builds/parses byte buffers only.
+* Designed for Arduino Uno (2KB RAM, 32KB flash).
 *
 * All construction functions return:
 *   positive int = total packet length in bytes (on success)
@@ -11,11 +13,20 @@
 *     -2 = buffer overflow
 ******************************************/
 
-#ifndef MQTT_V5_H_INCLUDED
-#define MQTT_V5_H_INCLUDED
+#ifndef YUAMQTT_H
+#define YUAMQTT_H
+
+#define YUAMQTT_VERSION "1.1.0"
+#define YUAMQTT_VERSION_MAJOR 1
+#define YUAMQTT_VERSION_MINOR 1
+#define YUAMQTT_VERSION_PATCH 0
 
 #include <string.h>
 #include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // MQTT packet type constants
 #define MQTT_CONNECT    0x10
@@ -31,6 +42,11 @@
 #define MQTT_PROTOCOL_VERSION_5 0x05
 #define MQTT_BUFFER_SIZE 256
 #define MQTT_MAX_PROPERTIES 10
+
+// Default keep-alive in seconds (can be overridden before including this header)
+#ifndef MQTT_DEFAULT_KEEP_ALIVE
+#define MQTT_DEFAULT_KEEP_ALIVE 15
+#endif
 
 // MQTT V5 property data types
 #define MQTT_PROP_TYPE_BYTE         0
@@ -58,9 +74,9 @@ int mqtt_v5_encode_vbi(uint8_t *buf, uint32_t value);
 int mqtt_v5_decode_vbi(const uint8_t *buf, uint32_t *value);
 
 // Packet construction functions - return packet length on success, negative on error
-int mqtt_v5_connect_message(uint8_t *mqtt_message, const char *client_id, mqtt_property *properties, uint8_t property_count);
+int mqtt_v5_connect_message(uint8_t *mqtt_message, const char *client_id, uint16_t keep_alive, mqtt_property *properties, uint8_t property_count);
 int mqtt_v5_publish_message(uint8_t *mqtt_message, const char *topic, const char *message, mqtt_property *properties, uint8_t property_count);
-int mqtt_v5_subscribe_message(uint8_t *mqtt_message, const char *topic, uint8_t qos, mqtt_property *properties, uint8_t property_count);
+int mqtt_v5_subscribe_message(uint8_t *mqtt_message, uint16_t packet_id, const char *topic, uint8_t qos, mqtt_property *properties, uint8_t property_count);
 int mqtt_v5_disconnect_message(uint8_t *mqtt_message);
 int mqtt_v5_pingreq_message(uint8_t *mqtt_message);
 
@@ -70,4 +86,8 @@ int mqtt_v5_parse_suback_message(const uint8_t *mqtt_message, uint16_t *packet_i
 int mqtt_v5_parse_publish(const uint8_t *mqtt_message, uint16_t msg_len, char *topic, uint16_t topic_buf_size, uint8_t *payload, uint16_t payload_buf_size, uint16_t *topic_len_out, uint16_t *payload_len_out);
 int mqtt_v5_is_pingresp(const uint8_t *mqtt_message);
 
-#endif // MQTT_V5_H_INCLUDED
+#ifdef __cplusplus
+}
+#endif
+
+#endif // YUAMQTT_H

@@ -1,6 +1,27 @@
-# SIM800 MQTT V5 Library
+# YuaMQTT - Yet Another UART MQTT Library
 
 An Arduino library for communicating with MQTT 5.0 brokers via SIM800/SIM900 GPRS modules.
+Designed specifically for Arduino Uno's constrained environment (2KB RAM, 32KB flash).
+
+## Architecture
+
+```text
+┌─────────────────────────────────┐
+│         Your Arduino Sketch     │
+├─────────────────────────────────┤
+│  YuaMQTT.h  (core, transport-   │ ← Builds/parses MQTT V5 byte buffers
+│              agnostic)          │    No I/O, no Serial dependency
+├──────────────┬──────────────────┤
+│ YuaMQTT      │  YuaMQTT         │ ← Optional module helpers
+│ _SIM800.h    │  _SIM900.h       │    AT commands for GPRS TCP
+└──────┬───────┴───────┬──────────┘
+       │               │
+   SIM800 module    SIM900 module
+   (SoftwareSerial) (Serial1 / HW UART)
+```
+
+- **Core** (`YuaMQTT.h`): Pure packet construction and parsing. No Arduino dependency in the C code itself.
+- **Module helpers** (optional): `YuaSIM800` / `YuaSIM900` classes wrap AT commands for GPRS attach, TCP connect, and raw data send/receive.
 
 ## Features
 
@@ -9,6 +30,7 @@ An Arduino library for communicating with MQTT 5.0 brokers via SIM800/SIM900 GPR
 - **Hardware & Software Serial**: Works with `Serial1` (hardware UART) or `SoftwareSerial`
 - **Memory efficient**: Preallocated 256-byte buffer, no dynamic allocation
 - **Error handling**: All functions return packet length on success, negative error codes on failure
+- **Module helpers included**: SIM800 and SIM900 AT command wrappers with debug output
 
 ## Installation
 
@@ -28,37 +50,54 @@ lib_deps = https://github.com/EdwinKestler/SIM800_MQTT.git
 
 ## Quick Start
 
+### Using the SIM800 module helper
+
 ```cpp
-#include <mqtt_v5.h>
+#include <YuaMQTT.h>
+#include <YuaMQTT_SIM800.h>
 #include <SoftwareSerial.h>
 
-SoftwareSerial SIM800(10, 11);
+SoftwareSerial simSerial(10, 11);
+YuaSIM800 sim(simSerial, &Serial);  // debug output on Serial
 
 void setup() {
     Serial.begin(9600);
-    SIM800.begin(9600);
+    simSerial.begin(9600);
 
-    // Connect to MQTT broker with Session Expiry property
-    mqtt_property props[1];
-    uint8_t session_expiry[4] = {0, 0, 0, 60}; // 60 seconds
-    props[0].property_id = 0x11;
-    props[0].length = 4;
-    props[0].value = session_expiry;
+    sim.begin();
+    sim.gprsConnect("your-apn");
+    sim.tcpConnect("broker.example.com", 1883);
 
-    int len = mqtt_v5_connect_message(preallocated_mqtt_buffer, "my_client", props, 1);
-    if (len > 0) {
-        SIM800.write(preallocated_mqtt_buffer, len);
-    }
+    // Build and send MQTT CONNECT
+    int len = mqtt_v5_connect_message(preallocated_mqtt_buffer,
+                "my_client", MQTT_DEFAULT_KEEP_ALIVE, NULL, 0);
+    if (len > 0) sim.tcpSend(preallocated_mqtt_buffer, len);
 }
 
 void loop() {
-    // Publish a message
-    int len = mqtt_v5_publish_message(preallocated_mqtt_buffer, "sensor/data",
-        "{\"temp\":25}", NULL, 0);
-    if (len > 0) {
-        SIM800.write(preallocated_mqtt_buffer, len);
-    }
+    int len = mqtt_v5_publish_message(preallocated_mqtt_buffer,
+                "sensor/data", "{\"temp\":25}", NULL, 0);
+    if (len > 0) sim.tcpSend(preallocated_mqtt_buffer, len);
     delay(5000);
+}
+```
+
+### Core library only (transport-agnostic)
+
+```cpp
+#include <YuaMQTT.h>
+
+// Build a CONNECT packet into the preallocated buffer
+mqtt_property props[1];
+uint8_t session_expiry[4] = {0, 0, 0, 60};
+props[0].property_id = 0x11;
+props[0].length = 4;
+props[0].value = session_expiry;
+
+int len = mqtt_v5_connect_message(preallocated_mqtt_buffer,
+            "my_client", 15, props, 1);
+if (len > 0) {
+    // Send preallocated_mqtt_buffer[0..len-1] over your transport
 }
 ```
 
@@ -69,19 +108,19 @@ All construction functions return **packet length** (positive int) on success, o
 - `-1`: NULL parameter provided
 - `-2`: Buffer overflow (message exceeds `MQTT_BUFFER_SIZE`)
 
-### Functions
+### MQTT V5 Core Functions
 
-#### `int mqtt_v5_connect_message(uint8_t *buf, const char *client_id, mqtt_property *props, uint8_t prop_count)`
+#### `int mqtt_v5_connect_message(uint8_t *buf, const char *client_id, uint16_t keep_alive, mqtt_property *props, uint8_t prop_count)`
 
-Constructs an MQTT V5 CONNECT packet with Clean Start flag and 15-second keep-alive.
+Constructs an MQTT V5 CONNECT packet with Clean Start flag and configurable keep-alive.
 
 #### `int mqtt_v5_publish_message(uint8_t *buf, const char *topic, const char *message, mqtt_property *props, uint8_t prop_count)`
 
 Constructs an MQTT V5 PUBLISH packet (QoS 0).
 
-#### `int mqtt_v5_subscribe_message(uint8_t *buf, const char *topic, uint8_t qos, mqtt_property *props, uint8_t prop_count)`
+#### `int mqtt_v5_subscribe_message(uint8_t *buf, uint16_t packet_id, const char *topic, uint8_t qos, mqtt_property *props, uint8_t prop_count)`
 
-Constructs an MQTT V5 SUBSCRIBE packet.
+Constructs an MQTT V5 SUBSCRIBE packet with configurable packet identifier.
 
 #### `int mqtt_v5_disconnect_message(uint8_t *buf)`
 
@@ -89,7 +128,7 @@ Constructs a minimal MQTT V5 DISCONNECT packet (reason code 0x00).
 
 #### `int mqtt_v5_pingreq_message(uint8_t *buf)`
 
-Constructs a PINGREQ packet. Must be sent within the keep-alive interval (15s) to prevent the broker from disconnecting.
+Constructs a PINGREQ packet. Must be sent within the keep-alive interval to prevent the broker from disconnecting.
 
 #### `int mqtt_v5_parse_connack(const uint8_t *buf, uint8_t *session_present, uint8_t *reason_code)`
 
@@ -110,6 +149,36 @@ Returns 1 if the message is a PINGRESP, 0 otherwise.
 #### `int mqtt_v5_encode_vbi(uint8_t *buf, uint32_t value)` / `int mqtt_v5_decode_vbi(const uint8_t *buf, uint32_t *value)`
 
 MQTT Variable Byte Integer encoding/decoding utilities.
+
+### SIM800 Module Helper
+
+```cpp
+#include <YuaMQTT_SIM800.h>
+
+YuaSIM800 sim(simSerial, &Serial);  // second arg is optional debug stream
+```
+
+| Method | Description |
+| --- | --- |
+| `begin()` | Send AT, verify module responds |
+| `signalQuality()` | AT+CSQ, returns RSSI (0-31, 99=unknown) |
+| `gprsConnect(apn, user, pass)` | Set APN, bring up GPRS, get IP |
+| `gprsDisconnect()` | AT+CIPSHUT |
+| `tcpConnect(host, port)` | Open TCP socket to MQTT broker |
+| `tcpClose()` | Close TCP socket |
+| `tcpSend(data, len)` | Send raw bytes via AT+CIPSEND |
+| `tcpRead(buf, size, timeout)` | Read available bytes from module |
+| `sendATCommand(cmd, expected, timeout)` | Send any AT command |
+
+### SIM900 Module Helper
+
+```cpp
+#include <YuaMQTT_SIM900.h>
+
+YuaSIM900 sim(Serial1, &Serial);  // hardware UART recommended
+```
+
+Same API as `YuaSIM800`. See `docs/SIM900_AT_Commands.md` for AT command details.
 
 ### Properties
 
@@ -140,11 +209,12 @@ Common property IDs:
 - **FullLoopTest** - Complete minimal session: CONNECT, verify CONNACK, SUBSCRIBE, PUBLISH, parse incoming PUBLISH, PINGREQ keep-alive
 - **FullLoopSIM800** - Full loop with GPRS configuration
 - **FullLoopJSON** - Full loop with ArduinoJson parsing (requires ArduinoJson library)
+- **HardwareSerialPublish** - Hardware UART (Serial1) with SIM800 helper, GPRS, and keep-alive (Mega, ESP32, STM32, RP2040)
 
 ## Supported Boards
 
-- **Single UART**: Arduino Uno, Nano (requires SoftwareSerial)
-- **Multi-UART**: Arduino Mega, Leonardo, Due (recommended, use `Serial1`)
+- **Single UART**: Arduino Uno, Nano (requires SoftwareSerial) - primary target
+- **Multi-UART**: Arduino Mega, Leonardo, Due (recommended for SIM900, use `Serial1`)
 
 ## Current Implementation Status
 
@@ -193,9 +263,15 @@ Common property IDs:
 | 21 | Request/Response | Bidirectional | Response Topic + Correlation Data properties | Planned |
 | 22 | Shared Subscriptions | Client -> Broker | `$share/group/topic` subscription format | Planned |
 
+## Documentation
+
+- [SIM800 AT Command Reference](docs/SIM800_AT_Commands.md)
+- [SIM900 AT Command Reference](docs/SIM900_AT_Commands.md)
+- Full manufacturer AT command manuals are in the `docs/` folder (PDF)
+
 ## Legacy
 
-The original MQTT 3.1 library files are preserved in the `legacy/` folder for reference.
+The original MQTT 3.1 library files (tested since 2012) are preserved in the `legacy/` folder for reference.
 
 ## License
 

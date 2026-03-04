@@ -2,7 +2,7 @@
 // Minimal functional MQTT V5 session: CONNECT, verify CONNACK, SUBSCRIBE,
 // PUBLISH, parse incoming PUBLISH, and PINGREQ keep-alive.
 
-#include <mqtt_v5.h>
+#include <YuaMQTT.h>
 #include <SoftwareSerial.h>
 
 #define SIM_TX 10
@@ -161,7 +161,7 @@ void connectToMQTTBroker() {
   connect_properties[0].length = 4;
   connect_properties[0].value = session_expiry;
 
-  int len = mqtt_v5_connect_message(preallocated_mqtt_buffer, "arduino_client", connect_properties, 1);
+  int len = mqtt_v5_connect_message(preallocated_mqtt_buffer, "arduino_client", MQTT_DEFAULT_KEEP_ALIVE, connect_properties, 1);
   if (len > 0) {
     sendMQTTMessage(preallocated_mqtt_buffer, len);
     Serial.println("CONNECT sent.");
@@ -174,7 +174,7 @@ void subscribeToTopic() {
   Serial.print("Subscribing to: ");
   Serial.println(topic);
 
-  int len = mqtt_v5_subscribe_message(preallocated_mqtt_buffer, topic, 1, NULL, 0);
+  int len = mqtt_v5_subscribe_message(preallocated_mqtt_buffer, 1, topic, 1, NULL, 0);
   if (len > 0) {
     sendMQTTMessage(preallocated_mqtt_buffer, len);
     Serial.println("SUBSCRIBE sent.");

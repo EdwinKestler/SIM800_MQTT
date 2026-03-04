@@ -1,7 +1,7 @@
 // BasicSubscribe example
 // Demonstrates subscribing to an MQTT topic and parsing SUBACK via MQTT V5.
 
-#include <mqtt_v5.h>
+#include <YuaMQTT.h>
 #include <SoftwareSerial.h>
 
 #define SIM_TX 10
@@ -22,7 +22,7 @@ void setup() {
     connect_properties[0].length = 4;
     connect_properties[0].value = session_expiry;
 
-    int len = mqtt_v5_connect_message(preallocated_mqtt_buffer, "arduino_client", connect_properties, 1);
+    int len = mqtt_v5_connect_message(preallocated_mqtt_buffer, "arduino_client", MQTT_DEFAULT_KEEP_ALIVE, connect_properties, 1);
     if (len > 0) {
         send_message(preallocated_mqtt_buffer, len);
     }
@@ -34,7 +34,7 @@ void setup() {
     subscribe_properties[0].length = 2;
     subscribe_properties[0].value = subscription_identifier;
 
-    len = mqtt_v5_subscribe_message(preallocated_mqtt_buffer, topic_to_subscribe, 1, subscribe_properties, 1);
+    len = mqtt_v5_subscribe_message(preallocated_mqtt_buffer, 1, topic_to_subscribe, 1, subscribe_properties, 1);
     if (len > 0) {
         send_message(preallocated_mqtt_buffer, len);
     }
