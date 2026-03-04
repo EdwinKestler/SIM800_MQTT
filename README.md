@@ -1,5 +1,11 @@
 # YuaMQTT - Yet Another UART MQTT Library
 
+[![CI](https://github.com/EdwinKestler/SIM800_MQTT/actions/workflows/ci.yml/badge.svg)](https://github.com/EdwinKestler/SIM800_MQTT/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](CHANGELOG.md)
+[![Arduino](https://img.shields.io/badge/Arduino-compatible-teal.svg)](library.properties)
+[![PlatformIO](https://img.shields.io/badge/PlatformIO-compatible-orange.svg)](library.json)
+
 An Arduino library for communicating with MQTT 5.0 brokers via SIM800/SIM900 GPRS modules.
 Designed specifically for Arduino Uno's constrained environment (2KB RAM, 32KB flash).
 
@@ -523,6 +529,13 @@ Global variables use 1379 bytes (67%) of dynamic memory, leaving 669 bytes for l
 - [SIM800 AT Command Reference](docs/SIM800_AT_Commands.md)
 - [SIM900 AT Command Reference](docs/SIM900_AT_Commands.md)
 - Full manufacturer AT command manuals are in the `docs/` folder (PDF)
+
+### Generate API docs (Doxygen)
+
+```bash
+doxygen Doxyfile
+# Open docs/api/html/index.html in your browser
+```
 
 ## Legacy
 

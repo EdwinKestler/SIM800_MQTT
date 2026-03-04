@@ -49,5 +49,8 @@ Desktop.ini
 # Tool config
 .claude/
 
+# Doxygen output
+docs/api/
+
 # Logs
 *.log

@@ -1,0 +1,44 @@
+# Doxyfile for YuaMQTT
+# Generate with: doxygen Doxyfile
+
+PROJECT_NAME           = "YuaMQTT"
+PROJECT_NUMBER         = 1.1.0
+PROJECT_BRIEF          = "Yet Another UART MQTT Library - MQTT 5.0 for Arduino"
+OUTPUT_DIRECTORY       = docs/api
+INPUT                  = src/
+FILE_PATTERNS          = *.h *.cpp
+RECURSIVE              = NO
+
+# Extract documentation from code even without Doxygen comments
+EXTRACT_ALL            = YES
+EXTRACT_STATIC         = YES
+
+# Output formats
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+HTML_OUTPUT            = html
+
+# Source browsing
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = NO
+STRIP_CODE_COMMENTS    = NO
+
+# Preprocessing
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = YES
+PREDEFINED             = __cplusplus
+
+# Styling
+HTML_COLORSTYLE_HUE    = 220
+HTML_COLORSTYLE_SAT    = 100
+HTML_COLORSTYLE_GAMMA  = 80
+DISABLE_INDEX          = NO
+GENERATE_TREEVIEW      = YES
+
+# Diagrams
+HAVE_DOT               = NO
+CLASS_DIAGRAMS         = YES
+
+# Quiet
+QUIET                  = YES
+WARNINGS               = YES
