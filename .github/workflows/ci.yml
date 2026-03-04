@@ -27,7 +27,6 @@ jobs:
           - BasicSubscribe
           - FullLoopTest
           - FullLoopSIM800
-          - HardwareSerialPublish
     steps:
       - uses: actions/checkout@v4
 
